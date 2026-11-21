@@ -11,7 +11,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 ROOT = Path(__file__).resolve().parent
 DOCS = ('README.md', 'COPYING', 'THIRD_PARTY.md', 'hardware.md')
-SOURCE_FILES = ('VERSION', 'app.py', 'audio_output.py', 'build.py', 'keyboard.py',
+SOURCE_FILES = ('VERSION', 'app.py', 'audio_output.py', 'build.py', 'file_transfer.py', 'keyboard.py',
                 'machine.py', 'package.py', 'prepare.py', 'requirements.txt',
                 'requirements-build.txt', *DOCS)
 SOURCE_DIRS = ('assets', 'docs', 'src', 'tests', 'tools', 'vendor')

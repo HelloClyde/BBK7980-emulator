@@ -1,6 +1,5 @@
 """Prepare a private V1.10 runtime using the user's original upgrade package."""
 import argparse
-import ctypes
 import hashlib
 import json
 from pathlib import Path
@@ -18,8 +17,7 @@ FONT_SOURCE = ROOT / 'vendor/fonts/unifont-18.0.01.hex.gz'
 
 
 def export_nand(machine, destination):
-    raw = (ctypes.c_uint8 * machine.lib.bbk_nand_size())()
-    machine.lib.bbk_nand_export(raw)
+    raw = machine.snapshot_nand()
     destination.write_bytes(zlib.compress(raw, 3))
     return hashlib.sha256(raw).hexdigest()
 

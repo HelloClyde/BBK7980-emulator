@@ -83,6 +83,15 @@ class GuestTests(unittest.TestCase):
         link.put('roundtrip.bin',payload)
         self.assertEqual(link.get('roundtrip.bin'),payload)
 
+    def test_guest_serial_distinguishes_empty_and_missing_file(self):
+        self.m.load_nand(RUNTIME/'installed-nand.bin.z')
+        from file_transfer import connect
+        link = connect(self.m)
+        link.put('空文件.txt', b'')
+        self.assertEqual(link.get('空文件.txt'), b'')
+        with self.assertRaises(FileNotFoundError):
+            connect(self.m).get('不存在的文件.txt')
+
     def test_stock_menu_changes_on_keypress(self):
         self.m.load_nand(RUNTIME/'installed-nand.bin.z');self.m.run(80_000_000)
         before=self.m.frame();self.assertEqual(set(before),{0,1,2,3})

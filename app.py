@@ -4,11 +4,12 @@ import json
 from pathlib import Path
 import sys
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, simpledialog
 from PIL import Image, ImageTk
 from machine import Machine, ROOT, APP_DIR
 from keyboard import KEYS, PANEL_ROWS, PANEL_FUNCTIONS, host_key, host_key_source
 from audio_output import AudioOutput
+import file_transfer
 from prepare import prepare
 
 PALETTE=[235,241,220,153,169,131,83,105,65,26,45,25]+[0]*756
@@ -37,6 +38,10 @@ class Emulator:
         row=ttk.Frame(outer);row.pack(pady=8)
         for label,action in [('暂停 / 继续',self.pause),('重启',self.reset),('保存',self.save),('截图',self.screenshot),('载入 NAND',self.open_nand),('按键矩阵',self.matrix)]:
             ttk.Button(row,text=label,command=action).pack(side='left',padx=3)
+        files = ttk.Frame(outer)
+        files.pack()
+        ttk.Button(files, text='导入文件', command=self.import_file).pack(side='left', padx=3)
+        ttk.Button(files, text='导出文件', command=self.export_file).pack(side='left', padx=3)
         self.status=tk.StringVar(value='正在启动…');ttk.Label(outer,textvariable=self.status).pack(anchor='w',pady=(8,0))
         window.bind('<KeyPress>',self.key_down);window.bind('<KeyRelease>',self.key_up)
         window.bind('<FocusOut>',lambda event:self.release_all())
@@ -167,6 +172,70 @@ class Emulator:
         if not path:return
         try:self.machine.load_nand(path);self.reset()
         except (OSError,ValueError) as exc:messagebox.showerror('载入失败',str(exc))
+
+    def transfer(self, status, operation, *, write=False):
+        self.release_all()
+        self.audio_output.clear()
+        self.status.set(status)
+        self.window.configure(cursor='watch')
+        self.window.update_idletasks()
+        try:
+            snapshot = self.machine.snapshot_nand() if write else None
+            try:
+                result = operation(file_transfer.connect(self.machine))
+                if write:
+                    self.machine.save_nand(self.save_path)
+                return result
+            except (OSError, ValueError, RuntimeError):
+                if snapshot is not None:
+                    self.machine.restore_nand(snapshot)
+                raise
+            finally:
+                self.reset()
+                self.render()
+        finally:
+            self.window.configure(cursor='')
+
+    def import_file(self):
+        path = filedialog.askopenfilename(parent=self.window, title='选择要导入 7980 的文件')
+        if not path:
+            return
+        try:
+            name, data, flags = file_transfer.read_import(path)
+            if not messagebox.askokcancel(
+                '导入文件', f'将导入「{name}」。传输会重启模拟器，请先保存当前应用进度。\n'
+                '机内如有同名文件，将用此次导入的文件替换。', parent=self.window
+            ):
+                return
+
+            def install(link):
+                link.put(name, data, flags)
+                if link.get(name) != data:
+                    raise RuntimeError('机内读回校验失败，已恢复导入前的 NAND。')
+
+            self.transfer(f'正在导入并校验「{name}」…', install, write=True)
+            messagebox.showinfo('导入完成', f'「{name}」已导入并保存。', parent=self.window)
+        except (OSError, ValueError, RuntimeError) as error:
+            messagebox.showerror('导入失败', str(error), parent=self.window)
+
+    def export_file(self):
+        name = simpledialog.askstring(
+            '导出文件', '请输入机内的完整文件名，含扩展名并区分大小写。\n'
+            '传输会重启模拟器，请先保存当前应用进度。', parent=self.window)
+        if not name:
+            return
+        try:
+            file_transfer.validate_name(name)
+            path = filedialog.asksaveasfilename(parent=self.window, title='保存导出的文件',
+                                                initialfile=name)
+            if not path:
+                return
+            data = self.transfer(f'正在读取「{name}」…', lambda link: link.get(name))
+            file_transfer.write_export(path, data)
+            messagebox.showinfo('导出完成', f'已保存「{name}」（{len(data):,} 字节）。',
+                                parent=self.window)
+        except (OSError, ValueError, RuntimeError) as error:
+            messagebox.showerror('导出失败', str(error), parent=self.window)
 
     def matrix(self):
         panel=tk.Toplevel(self.window);panel.title('7980 原始按键矩阵')

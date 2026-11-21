@@ -58,10 +58,18 @@ class Machine:
         samples=(C.c_int16*262144)();count=self.lib.bbk_audio_read(samples,len(samples))
         return bytes(samples)[:count*2]
 
-    def save_nand(self, path):
+    def snapshot_nand(self):
         size = self.lib.bbk_nand_size()
         data = (C.c_uint8 * size)()
         self.lib.bbk_nand_export(data)
+        return data
+
+    def restore_nand(self, data):
+        if self.lib.bbk_nand_import(data, len(data)):
+            raise ValueError("Invalid NAND size; expected 64 MiB plus 16-byte spare per page")
+
+    def save_nand(self, path):
+        data = self.snapshot_nand()
         path = Path(path)
         temporary = path.with_suffix(path.suffix + ".tmp")
         temporary.write_bytes(bytes(data))
@@ -71,8 +79,7 @@ class Machine:
         data = Path(path).read_bytes()
         if str(path).endswith('.z'):data=zlib.decompress(data)
         buf = (C.c_uint8 * len(data)).from_buffer_copy(data)
-        if self.lib.bbk_nand_import(buf, len(data)):
-            raise ValueError("Invalid NAND size; expected 64 MiB plus 16-byte spare per page")
+        self.restore_nand(buf)
 
 
 if __name__ == "__main__":
