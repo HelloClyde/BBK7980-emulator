@@ -6,13 +6,24 @@
 
 ## 下载与运行
 
-下载并完整解压 [Windows x64 离线版](https://github.com/HelloClyde/BBK7980-emulator/releases/download/v0.6.2/BBK7980-emulator-0.6.2-win64-offline.zip)，双击 `BBK7980.exe` 即可进入 V1.10 系统。离线版已装好完整固件、NAND 运行镜像、兼容字库和扫雷。
+### 离线版（解压即用）
 
-标准便携版也可从 [Release 页面](https://github.com/HelloClyde/BBK7980-emulator/releases/tag/v0.6.2) 下载。该版本首次启动时选择[步步高官网 7980 V1.10 升级包](https://down.eebbk.net/xzzx/7980/1/7980sj.exe)，模拟器会格式化虚拟 NAND、安装字库和应用，并逐项读回校验。官网升级包的 SHA-256 为 `b9c4aa62cd9517859930620cdce5f7c6027120777926bb49e56989bb4e8d145c`。
+1. 下载 [Windows x64 离线版](https://github.com/HelloClyde/BBK7980-emulator/releases/download/v0.6.2/BBK7980-emulator-0.6.2-win64-offline.zip)。
+2. 完整解压 ZIP，打开解压出的 `BBK7980` 文件夹，双击 `BBK7980.exe`。
+3. 启动后直接进入 V1.10 系统。固件、NAND 运行镜像、兼容字库和扫雷已预装。
 
-进入「娱乐」可打开《扫雷》，用方向键移动、Enter 翻开格子、空格插旗、Esc 退出。两个 ZIP 的 SHA-256 均随 Release 提供。
+### 标准便携版（从官网升级包导入固件）
+
+1. 下载 [Windows x64 标准便携版](https://github.com/HelloClyde/BBK7980-emulator/releases/download/v0.6.2/BBK7980-emulator-0.6.2-win64.zip)，完整解压 ZIP。
+2. [从步步高官网下载朗文 7980 V1.10 升级包](https://down.eebbk.net/xzzx/7980/1/7980sj.exe)，保存为 `7980sj.exe`。这个文件是模拟器的导入源。
+3. 双击解压目录中的 `BBK7980/BBK7980.exe`。首次启动弹出文件选择窗口时，选中刚下载的 `7980sj.exe`。
+4. 等待模拟器安装并校验系统文件，完成后会自动进入主界面。生成的运行镜像保存在 `runtime/`，后续启动会直接使用它。
+
+官网升级包的 SHA-256 为 `b9c4aa62cd9517859930620cdce5f7c6027120777926bb49e56989bb4e8d145c`。两个 ZIP 的校验文件在 [GitHub Release](https://github.com/HelloClyde/BBK7980-emulator/releases/tag/v0.6.2) 一并提供。
 
 ## 键盘和存档
+
+在主界面按 Page Up / Page Down 翻页，按应用图标旁的数字打开应用。也可以用方向键选择、Enter 确认、Esc 返回。进入「娱乐」可打开《扫雷》，用方向键移动、Enter 翻开格子、空格插旗、Esc 退出。
 
 | 电脑按键 | 模拟器按键 |
 | --- | --- |
@@ -25,7 +36,7 @@
 
 数字、字母、空格可直接输入，电源、字体、帮助、输入法和中英符也可以在面板上点选。菜单中的「载入 NAND」可打开同一模拟器格式的 NAND 文件。
 
-初次导入生成的 `runtime/` 包含基准镜像、导入清单和字库。点「保存」或正常退出会把用户镜像写入 `runtime/data/nand.bin`。迁移便携版时可一并复制整个 `runtime/`，或者把旧版的 `data/nand.bin` 备份后复制到该位置。
+`runtime/` 保存固件和基准镜像。点「保存」或正常退出会把用户镜像写入 `runtime/data/nand.bin`。换目录或升级模拟器时，可把旧版的整个 `runtime/` 一并复制过去，以保留系统和存档。如果旧版把存档放在 `data/nand.bin`，备份后将该文件复制到新版的 `runtime/data/nand.bin`。
 
 ## 单个文件的导入和导出
 
