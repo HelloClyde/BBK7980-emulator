@@ -1,0 +1,6 @@
+-r requirements.txt
+PyInstaller==6.16.0
+pyinstaller-hooks-contrib==2026.7
+altgraph==0.17.5
+packaging==26.2
+pywin32-ctypes==0.2.3

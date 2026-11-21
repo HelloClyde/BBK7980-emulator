@@ -1,0 +1,75 @@
+name: Build and release emulator
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: msys2 {0}
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+      - uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
+        with:
+          msystem: UCRT64
+          update: false
+          path-type: inherit
+          install: mingw-w64-ucrt-x86_64-gcc
+      - name: Install build dependencies
+        run: python -m pip install -r requirements-build.txt
+      - name: Build native core and pinned SDK demo
+        run: |
+          python build.py
+          python tools/build_demo.py
+      - name: Run synthetic ROM tests
+        run: python -m unittest discover -s tests -v
+      - name: Verify portable archive
+        run: |
+          python package.py
+          python tools/verify_release.py dist
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: emulator-windows-x64
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          archive: true
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: emulator-windows-x64
+          path: dist
+      - name: Verify same-build release archive
+        run: python3 tools/verify_release.py dist
+      - name: Publish preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.zip dist/SHA256SUMS.txt --verify-tag --prerelease --title "BBK7980 模拟器 $GITHUB_REF_NAME" --notes-file "docs/releases/$GITHUB_REF_NAME.md"
