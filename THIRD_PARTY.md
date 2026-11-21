@@ -5,4 +5,4 @@
 - GNU Unifont 18.0.01 版权及许可见 [字体说明](vendor/fonts/README.md)。原始字形文件与 SIL OFL 1.1、GPLv2+ 加字体嵌入例外的条款位于同一目录。
 - 扫雷和与之链接的运行库来自 [BBK7980 SDK v1.1.1](https://github.com/HelloClyde/BBK7980-sdk/releases/tag/v1.1.1)。发行包 `demo-source/` 附带对应源码、图标、许可证和构建信息，其中扫雷方向键已按 7980 真机布局修正。cc65 工具链用于构建，便携包附其许可文本。
 - 便携包使用 Python、Tcl/Tk、Pillow、pefile 和 PyInstaller，第三方许可随包附上。
-- 离线发行包中的步步高 V1.10 固件和原厂应用经授权随包分发，相关权利归各权利人。GNU GPLv3 适用于模拟器源码。标准发行包可由用户自行从官网升级包导入所需的原厂组件。
+- GitHub Release 单独提供的系统镜像包含经授权分发的步步高 V1.10 固件和原厂应用，相关权利归各权利人。GNU GPLv3 适用于模拟器源码。模拟器也支持从官网升级包生成系统镜像。
