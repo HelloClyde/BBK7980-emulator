@@ -92,6 +92,21 @@ class GuestTests(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             connect(self.m).get('不存在的文件.txt')
 
+    def test_export_list_reads_live_nand_without_deleted_entries(self):
+        from file_transfer import connect, list_files
+        self.m.load_nand(RUNTIME/'installed-nand.bin.z')
+        manifest = json.loads((RUNTIME/'installed-manifest.json').read_text(encoding='utf8'))
+        original = dict(list_files(self.m))
+        for file in manifest['verified']:
+            self.assertEqual(original[file['name']], file['size'])
+        link = connect(self.m)
+        name = '导出列表测试.txt'
+        link.put(name, b'old contents')
+        link.put(name, b'new')
+        self.assertEqual(list_files(self.m).count((name, 3)), 1)
+        self.assertNotIn((name, 12), list_files(self.m))
+        self.assertEqual(link.get(name), b'new')
+
     def test_stock_menu_changes_on_keypress(self):
         self.m.load_nand(RUNTIME/'installed-nand.bin.z');self.m.run(80_000_000)
         before=self.m.frame();self.assertEqual(set(before),{0,1,2,3})

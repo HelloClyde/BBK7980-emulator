@@ -59,6 +59,14 @@ Physical 500000 is data, 502000 address, 504000 command. ID currently ec76.
 Read-area commands 00/01/50 select columns 0/256/512 and persist through program 80.
 ECC, busy delays, bad blocks and electrical timing are simplified.
 
+The V1.10 export picker reads the active file directory from a NAND snapshot.
+The volume header's three block numbers at byte 20 select rotating copies of
+the block map. The active copy starts with `11`, followed by little-endian
+block numbers. The first four numbers select the primary directory. Each
+512-byte data area holds four 128-byte directory entries. A live entry has
+`55` at byte 96, a NUL-terminated name at byte 2, and a little-endian file
+size at byte 92. File contents are still read through the original UART service.
+
 ## Serial download
 
 UART data=64; RX source=11, TX completion=10. Emulated receive is back-pressured

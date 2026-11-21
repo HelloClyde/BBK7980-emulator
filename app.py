@@ -14,6 +14,42 @@ from prepare import prepare
 
 PALETTE=[235,241,220,153,169,131,83,105,65,26,45,25]+[0]*756
 
+
+class ExportFileDialog(simpledialog.Dialog):
+    def __init__(self, parent, files):
+        self.files = files
+        super().__init__(parent, title='选择要导出的机内文件')
+
+    def body(self, parent):
+        ttk.Label(parent, text='点击选择，可多选。').grid(row=0, column=0, sticky='w')
+        self.selection = tk.Listbox(parent, selectmode=tk.MULTIPLE, exportselection=False,
+                                    width=52, height=16, font=('Segoe UI', 10))
+        scroll = ttk.Scrollbar(parent, command=self.selection.yview)
+        self.selection.configure(yscrollcommand=scroll.set)
+        self.selection.grid(row=1, column=0, sticky='nsew')
+        scroll.grid(row=1, column=1, sticky='ns')
+        for name, size in self.files:
+            self.selection.insert(tk.END, f'{name}   ({size:,} 字节)')
+        return self.selection
+
+    def buttonbox(self):
+        row = ttk.Frame(self, padding=(6, 0, 6, 6))
+        row.pack()
+        ttk.Button(row, text='选择保存目录…', command=self.ok).pack(side='left', padx=4)
+        ttk.Button(row, text='取消', command=self.cancel).pack(side='left', padx=4)
+        self.bind('<Return>', self.ok)
+        self.bind('<Escape>', self.cancel)
+
+    def validate(self):
+        if not self.selection.curselection():
+            self.bell()
+            return False
+        return True
+
+    def apply(self):
+        self.result = [self.files[index][0] for index in self.selection.curselection()]
+
+
 class Emulator:
     def __init__(self, window, options):
         self.window=window;self.options=options;self.running=True;self.pressed={}
@@ -197,43 +233,76 @@ class Emulator:
             self.window.configure(cursor='')
 
     def import_file(self):
-        path = filedialog.askopenfilename(parent=self.window, title='选择要导入 7980 的文件')
-        if not path:
+        paths = filedialog.askopenfilenames(parent=self.window, title='选择要导入 7980 的文件')
+        if not paths:
             return
         try:
-            name, data, flags = file_transfer.read_import(path)
+            records = []
+            names = set()
+            total = 0
+            for path in paths:
+                name, data, flags = file_transfer.read_import(path)
+                if name in names:
+                    raise ValueError(f'所选文件都要使用机内名称「{name}」，请分开导入。')
+                total += len(data)
+                if total > file_transfer.MAX_FILE_SIZE:
+                    raise ValueError('所选文件的总大小超过虚拟 NAND 容量。')
+                names.add(name)
+                records.append((name, data, flags))
             if not messagebox.askokcancel(
-                '导入文件', f'将导入「{name}」。传输会重启模拟器，请先保存当前应用进度。\n'
+                '导入文件', f'将导入 {len(records)} 个文件。传输会重启模拟器，请先保存当前应用进度。\n'
                 '机内如有同名文件，将用此次导入的文件替换。', parent=self.window
             ):
                 return
 
             def install(link):
-                link.put(name, data, flags)
-                if link.get(name) != data:
-                    raise RuntimeError('机内读回校验失败，已恢复导入前的 NAND。')
+                for index, (name, data, flags) in enumerate(records):
+                    link.put(name, data, flags)
+                    if link.get(name) != data:
+                        raise RuntimeError(f'「{name}」读回校验失败，已恢复导入前的 NAND。')
+                    # V1.10 leaves PC-link after a zero-length reply.
+                    if not data and index + 1 < len(records):
+                        link = file_transfer.connect(self.machine)
 
-            self.transfer(f'正在导入并校验「{name}」…', install, write=True)
-            messagebox.showinfo('导入完成', f'「{name}」已导入并保存。', parent=self.window)
+            self.transfer(f'正在导入并校验 {len(records)} 个文件…', install, write=True)
+            messagebox.showinfo('导入完成', f'{len(records)} 个文件已导入并保存。', parent=self.window)
         except (OSError, ValueError, RuntimeError) as error:
             messagebox.showerror('导入失败', str(error), parent=self.window)
 
     def export_file(self):
-        name = simpledialog.askstring(
-            '导出文件', '请输入机内的完整文件名，含扩展名并区分大小写。\n'
-            '传输会重启模拟器，请先保存当前应用进度。', parent=self.window)
-        if not name:
-            return
         try:
-            file_transfer.validate_name(name)
-            path = filedialog.asksaveasfilename(parent=self.window, title='保存导出的文件',
-                                                initialfile=name)
-            if not path:
+            files = file_transfer.list_files(self.machine)
+            if not files:
+                messagebox.showinfo('导出文件', '当前 NAND 中没有可导出的文件。', parent=self.window)
                 return
-            data = self.transfer(f'正在读取「{name}」…', lambda link: link.get(name))
-            file_transfer.write_export(path, data)
-            messagebox.showinfo('导出完成', f'已保存「{name}」（{len(data):,} 字节）。',
-                                parent=self.window)
+            names = ExportFileDialog(self.window, files).result
+            if not names:
+                return
+            directory = filedialog.askdirectory(parent=self.window, title='选择导出的保存目录',
+                                                mustexist=True)
+            if not directory:
+                return
+            paths = file_transfer.export_paths(directory, names)
+            conflicts = sum(path.exists() for path in paths)
+            prompt = f'将导出 {len(names)} 个文件。传输会重启模拟器，请先保存当前应用进度。'
+            if conflicts:
+                prompt += f'\n保存目录中有 {conflicts} 个同名文件。继续会覆盖它们。'
+            if not messagebox.askokcancel('导出文件', prompt, parent=self.window):
+                return
+
+            def download(link):
+                payloads = []
+                for index, name in enumerate(names):
+                    data = link.get(name)
+                    payloads.append(data)
+                    if not data and index + 1 < len(names):
+                        link = file_transfer.connect(self.machine)
+                return payloads
+
+            payloads = self.transfer(f'正在读取 {len(names)} 个文件…', download)
+            for path, data in zip(paths, payloads):
+                file_transfer.write_export(path, data)
+            messagebox.showinfo('导出完成', f'已保存 {len(paths)} 个文件。', parent=self.window)
         except (OSError, ValueError, RuntimeError) as error:
             messagebox.showerror('导出失败', str(error), parent=self.window)
 

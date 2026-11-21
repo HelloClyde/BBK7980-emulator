@@ -1,5 +1,5 @@
 """Transfer files through the V1.10 firmware's PC-link screen."""
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import struct
 from tempfile import NamedTemporaryFile
 
@@ -8,6 +8,48 @@ from tools.install_probe import Link
 
 MAX_FILE_SIZE = 64 * 1024 * 1024
 TRANSFER_MAGIC = b'BJBBK.110'
+PAGE_SIZE = 528
+PAGE_DATA_SIZE = 512
+PAGES_PER_BLOCK = 32
+DIRECTORY_ENTRY_SIZE = 128
+
+
+def list_files(machine):
+    """Read live names and sizes from the active V1.10 NAND directory."""
+    image = memoryview(machine.snapshot_nand()).cast('B')
+    if image[:16].tobytes() != b'BJBBK B100 V1.1 ':
+        raise ValueError('当前 NAND 镜像没有可读取的 V1.10 文件目录。')
+
+    block_size = PAGE_SIZE * PAGES_PER_BLOCK
+    block_count = len(image) // block_size
+    map_blocks = struct.unpack_from('<3H', image, 20)
+    if any(block >= block_count for block in map_blocks):
+        raise ValueError('NAND 文件系统的块映射无效。')
+    maps = [block_size * block for block in map_blocks]
+    active_maps = [offset for offset in maps if image[offset] == 0x11]
+    if len(active_maps) != 1:
+        raise ValueError('找不到当前的 NAND 块映射。')
+
+    directory_blocks = struct.unpack_from('<4H', image, active_maps[0] + 1)
+    if any(block >= block_count or block in (0, *map_blocks) for block in directory_blocks):
+        raise ValueError('NAND 目录块超出有效范围。')
+    files = {}
+    for block in directory_blocks:
+        start = block * block_size
+        for page in range(start, start + block_size, PAGE_SIZE):
+            for offset in range(page, page + PAGE_DATA_SIZE, DIRECTORY_ENTRY_SIZE):
+                if image[offset + 96] != 0x55:
+                    continue
+                field = image[offset + 2:offset + 66].tobytes()
+                raw_name, separator, _ = field.partition(b'\0')
+                size = struct.unpack_from('<I', image, offset + 92)[0]
+                if raw_name and separator and size <= MAX_FILE_SIZE:
+                    try:
+                        name = raw_name.decode('gbk')
+                    except UnicodeDecodeError:
+                        continue
+                    files[name] = size
+    return sorted(files.items(), key=lambda item: item[0].casefold())
 
 
 def validate_name(name):
@@ -20,6 +62,20 @@ def validate_name(name):
         raise ValueError('文件名含 7980 无法识别的字符，请改用 GBK 可表示的字。') from None
     if len(encoded) > 63:
         raise ValueError('文件名（含扩展名）最多占 63 个 GBK 字节。')
+
+
+def export_paths(directory, names):
+    paths = []
+    used = set()
+    for name in names:
+        validate_name(name)
+        if PureWindowsPath(name).is_reserved() or name.endswith('.'):
+            raise ValueError(f'Windows 不能用「{name}」作为电脑文件名。')
+        if name.casefold() in used:
+            raise ValueError('所选文件含仅大小写不同的同名项，请分别导出到不同目录。')
+        used.add(name.casefold())
+        paths.append(Path(directory) / name)
+    return paths
 
 
 def read_import(path):
