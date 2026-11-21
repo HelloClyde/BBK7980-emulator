@@ -1,6 +1,6 @@
 # 步步高 7980 模拟器
 
-在 Windows 上运行朗文 7980 的 V1.10 系统。模拟器包含 65C02 指令、存储分页、定时器、中断、240 × 120 四级灰度 LCD、按键矩阵、UART 和虚拟 NAND。面板按 7980 真机照片排布，四方向键已在原厂工具菜单中逐一核对。
+在 Windows 上运行朗文 7980 的 V1.10 系统。模拟器包含 65C02 指令、存储分页、128 KiB 外置 SRAM、定时器、中断、240 × 120 四级灰度 LCD、按键矩阵、UART 和虚拟 NAND。面板按 7980 真机照片排布，四方向键已在原厂工具菜单中逐一核对。
 
 ![Windows 模拟器运行 SDK 扫雷，屏幕下方为真机布局键盘](assets/minesweeper-window.png)
 
@@ -8,8 +8,8 @@
 
 ### 下载模拟器和系统镜像
 
-1. 下载 [BBK7980 模拟器（Windows x64）](https://github.com/HelloClyde/BBK7980-emulator/releases/download/v0.6.2/BBK7980-emulator-0.6.2-win64.zip)，完整解压。
-2. 下载 [V1.10 系统镜像](https://github.com/HelloClyde/BBK7980-emulator/releases/download/v0.6.2/BBK7980-V1.10-runtime.zip)，把压缩包里的整个 `runtime` 文件夹解压到 `BBK7980.exe` 旁边。镜像包含 V1.10 原厂固件、预装 NAND、兼容字库和扫雷。
+1. 下载 [BBK7980 模拟器（Windows x64）](https://github.com/HelloClyde/BBK7980-emulator/releases/download/v0.6.3/BBK7980-emulator-0.6.3-win64.zip)，完整解压。
+2. 下载 [V1.10 系统镜像](https://github.com/HelloClyde/BBK7980-emulator/releases/download/v0.6.3/BBK7980-V1.10-runtime.zip)，把压缩包里的整个 `runtime` 文件夹解压到 `BBK7980.exe` 旁边。镜像包含 V1.10 原厂固件、预装 NAND、兼容字库和扫雷。
 3. 双击 `BBK7980.exe`，模拟器会自动读取该目录并进入系统。
 
 ```text
@@ -26,7 +26,7 @@ BBK7980/
 
 同一个模拟器也可以从官网升级包初始化。先[从步步高官网下载朗文 7980 V1.10 升级包](https://down.eebbk.net/xzzx/7980/1/7980sj.exe)，保存为 `7980sj.exe`。首次启动模拟器时，在文件选择窗口选中这个升级包。模拟器会生成 `runtime/`，校验完成后自动进入系统。
 
-官网升级包的 SHA-256 为 `b9c4aa62cd9517859930620cdce5f7c6027120777926bb49e56989bb4e8d145c`。模拟器和系统镜像的校验文件见 [GitHub Release](https://github.com/HelloClyde/BBK7980-emulator/releases/tag/v0.6.2)。
+官网升级包的 SHA-256 为 `b9c4aa62cd9517859930620cdce5f7c6027120777926bb49e56989bb4e8d145c`。模拟器和系统镜像的校验文件见 [GitHub Release](https://github.com/HelloClyde/BBK7980-emulator/releases/tag/v0.6.3)。
 
 ## 键盘和存档
 

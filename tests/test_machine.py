@@ -59,6 +59,16 @@ class HardwareTests(unittest.TestCase):
         for value in (0,4,0,0):self.lib.bbk_phys_write(address,value)
         self.assertEqual(self.lib.bbk_phys_read(data),0x77)
 
+    def test_external_sram_has_128_kib_before_mirroring(self):
+        base, size = 0x480000, 128 * 1024
+        for offset, value in ((0, 0x15), (size // 2, 0x32), (size - 1, 0x83)):
+            self.lib.bbk_phys_write(base + offset, value)
+            self.assertEqual(self.lib.bbk_phys_read(base + size + offset), value)
+        self.lib.bbk_phys_write(base + size, 0x47)
+        self.assertEqual(self.lib.bbk_phys_read(base), 0x47)
+        self.assertEqual(self.lib.bbk_phys_read(base + size // 2), 0x32)
+        self.assertEqual(self.lib.bbk_phys_read(base + size - 1), 0x83)
+
 
 @unittest.skipUnless(all((RUNTIME / name).is_file() for name in
                          ('syscode.bin', 'initialized-nand.bin.z', 'installed-nand.bin.z', 'font.bin')),

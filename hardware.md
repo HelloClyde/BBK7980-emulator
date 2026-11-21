@@ -11,9 +11,12 @@ Data window 8000–ffff uses `DRR << 15 | (address & 0x7fff)`.
 IREQ/IENA are 3c–3f. IRQ priority takes the high byte first, then its lowest set bit.
 IRQ N vector is `fffe - 2*(N+3)`. RTI leaves interrupt-bank service.
 
-RAM coverage is currently over-allocated. NOR mirrors 512 KiB below 400000;
-external RAM mirrors 1 MiB in 400000–7fffff, except the 500000 NAND window.
-These decoding assumptions require confirmation against hardware.
+NOR mirrors 512 KiB below 400000. The emulator mirrors 128 KiB of external
+SRAM in 400000–7fffff, except the 500000 NAND window. V1.10 writes to SRAM
+in 480000–49ffff. The stock calendar keeps 64 KiB of program banks and
+3,848 bytes of heap allocations live at the same time. The tested 128 KiB
+configuration boots and runs the stock menus, games and serial file service.
+Physical SRAM decoding and on-chip RAM capacity still require hardware checks.
 
 ## Keyboard
 
