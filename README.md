@@ -6,12 +6,11 @@
 
 ## 下载与运行
 
-1. 下载并完整解压 [Windows x64 便携版](https://github.com/HelloClyde/BBK7980-emulator/releases/tag/v0.6.2)。
-2. 保存[步步高官网 7980 V1.10 升级包](https://down.eebbk.net/xzzx/7980/1/7980sj.exe)。这是模拟器首次启动时要选的文件。
-3. 打开 `BBK7980.exe`，选择刚下载的 `7980sj.exe`。模拟器读取其资源，格式化虚拟 NAND、安装字库和应用，并逐一读回检查。导入可能需要一分钟左右。
-4. 打开「娱乐」中的《扫雷》，用方向键移动，Enter 翻开格子，空格插旗，Esc 退出。
+下载并完整解压 [Windows x64 离线版](https://github.com/HelloClyde/BBK7980-emulator/releases/download/v0.6.2/BBK7980-emulator-0.6.2-win64-offline.zip)，双击 `BBK7980.exe` 即可进入 V1.10 系统。离线版已装好完整固件、NAND 运行镜像、兼容字库和扫雷。
 
-升级包 SHA-256 为 `b9c4aa62cd9517859930620cdce5f7c6027120777926bb49e56989bb4e8d145c`。ZIP 的 SHA-256 随 Release 提供。便携版包含开源字库及扫雷，原厂固件和应用由导入步骤在本地生成。
+标准便携版也可从 [Release 页面](https://github.com/HelloClyde/BBK7980-emulator/releases/tag/v0.6.2) 下载。该版本首次启动时选择[步步高官网 7980 V1.10 升级包](https://down.eebbk.net/xzzx/7980/1/7980sj.exe)，模拟器会格式化虚拟 NAND、安装字库和应用，并逐项读回校验。官网升级包的 SHA-256 为 `b9c4aa62cd9517859930620cdce5f7c6027120777926bb49e56989bb4e8d145c`。
+
+进入「娱乐」可打开《扫雷》，用方向键移动、Enter 翻开格子、空格插旗、Esc 退出。两个 ZIP 的 SHA-256 均随 Release 提供。
 
 ## 键盘和存档
 
