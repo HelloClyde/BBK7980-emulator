@@ -39,7 +39,7 @@ python tools/build_demo.py
 python app.py
 ```
 
-`tools/build_demo.py` 从固定的 SDK v1.1.1 发行资产构建扫雷，核对资产的 SHA-256，在临时副本里更新该版 SDK 的四个方向键编号。也可用 `--sdk-archive PATH` 指定同一个已下载的 SDK ZIP。省略这一步时，首次导入只安装官网包和兼容字库。
+`tools/build_demo.py` 从固定的 SDK v1.1.1 发行资产构建扫雷，核对资产的 SHA-256，在临时副本里修正 SDK 的四个方向键编号，并让扫雷使用这些键值。也可用 `--sdk-archive PATH` 指定同一个已下载的 SDK ZIP。省略这一步时，首次导入只安装官网包和兼容字库。
 
 ```powershell
 python prepare.py C:\path\to\7980sj.exe

@@ -1,4 +1,6 @@
 import ctypes as C
+import json
+import os
 from pathlib import Path
 import sys
 import unittest
@@ -11,6 +13,8 @@ from make_font import glyph_offset,SECTIONS
 from probe_font import guest_offset,guest_glyph
 from keyboard import KEYS
 from capture_games import tap,menu
+
+RUNTIME = Path(os.environ.get('BBK7980_TEST_RUNTIME', ROOT / 'runtime'))
 
 class HardwareTests(unittest.TestCase):
     def setUp(self):self.m=Machine(bytes([0xea]) * 0x80000);self.lib=self.m.lib
@@ -56,11 +60,11 @@ class HardwareTests(unittest.TestCase):
         self.assertEqual(self.lib.bbk_phys_read(data),0x77)
 
 
-@unittest.skipUnless(all((ROOT / 'runtime' / name).is_file() for name in
+@unittest.skipUnless(all((RUNTIME / name).is_file() for name in
                          ('syscode.bin', 'initialized-nand.bin.z', 'installed-nand.bin.z', 'font.bin')),
                      'Run prepare.py with the original V1.10 updater for guest tests')
 class GuestTests(unittest.TestCase):
-    def setUp(self):self.m=Machine();self.lib=self.m.lib
+    def setUp(self):self.m=Machine(RUNTIME/'syscode.bin');self.lib=self.m.lib
 
     def test_original_firmware_formats_nand(self):
         self.m.run(20_000_000);initial=self.m.frame()
@@ -73,20 +77,20 @@ class GuestTests(unittest.TestCase):
         self.assertTrue(initial!=self.m.frame())
 
     def test_guest_serial_filesystem_roundtrip(self):
-        self.m.load_nand(ROOT/'runtime/initialized-nand.bin.z');self.m.run(100_000_000)
+        self.m.load_nand(RUNTIME/'initialized-nand.bin.z');self.m.run(100_000_000)
         link=Link(self.m);link.connect()
         payload=bytes(range(256))*65+b'last partial NAND page'
         link.put('roundtrip.bin',payload)
         self.assertEqual(link.get('roundtrip.bin'),payload)
 
     def test_stock_menu_changes_on_keypress(self):
-        self.m.load_nand(ROOT/'runtime/installed-nand.bin.z');self.m.run(80_000_000)
+        self.m.load_nand(RUNTIME/'installed-nand.bin.z');self.m.run(80_000_000)
         before=self.m.frame();self.assertEqual(set(before),{0,1,2,3})
         self.lib.bbk_key(5,3,1);self.m.run(3_000_000);self.lib.bbk_key(5,3,0)
         self.assertTrue(before!=self.m.frame(),'Native menu did not respond to a page key')
 
     def test_game_enter_escape_and_home_controls(self):
-        self.m.load_nand(ROOT/'runtime/installed-nand.bin.z');menu(self.m)
+        self.m.load_nand(RUNTIME/'installed-nand.bin.z');menu(self.m)
         entertainment=self.m.frame();tap(self.m,0,20_000_000)
         self.assertEqual(self.lib.bbk_read(0xa564),6) # Original game's title phase.
         tap(self.m,KEYS['Return'],3_000_000)
@@ -97,7 +101,7 @@ class GuestTests(unittest.TestCase):
         self.assertTrue(self.m.frame()==entertainment,'Home did not return to Entertainment')
 
     def test_four_directions_follow_axes_in_original_tools_menu(self):
-        self.m.load_nand(ROOT/'runtime/installed-nand.bin.z')
+        self.m.load_nand(RUNTIME/'installed-nand.bin.z')
         self.m.run(80_000_000)
         for _ in range(9): tap(self.m, KEYS['Next'])
         # The note editor is the center tile in the stock 3-by-3 Tools grid.
@@ -122,7 +126,7 @@ class GuestTests(unittest.TestCase):
                 assert_selection(column, row)
 
     def test_backspace_and_help_in_original_calculator(self):
-        self.m.load_nand(ROOT/'runtime/installed-nand.bin.z')
+        self.m.load_nand(RUNTIME/'installed-nand.bin.z')
         self.m.run(80_000_000)
         for _ in range(7): tap(self.m, KEYS['Next'])
         tap(self.m, KEYS['1'], 30_000_000)
@@ -140,14 +144,14 @@ class GuestTests(unittest.TestCase):
         self.assertEqual(self.m.frame(), twelve)
 
     def test_original_glyph_offsets_match_generated_layout(self):
-        self.m.load_nand(ROOT/'runtime/installed-nand.bin.z')
+        self.m.load_nand(RUNTIME/'installed-nand.bin.z')
         for code in (0x8140,0x817f,0x8240,0xd6d0,0xfefe):
             for size in (12,16,24):
                 self.assertEqual(guest_offset(self.m,code,size),glyph_offset(code,size))
 
     def test_original_firmware_reads_all_three_substitute_glyph_sizes(self):
-        self.m.load_nand(ROOT/'runtime/installed-nand.bin.z')
-        font=(ROOT/'runtime/font.bin').read_bytes()
+        self.m.load_nand(RUNTIME/'installed-nand.bin.z')
+        font=(RUNTIME/'font.bin').read_bytes()
         for character in ('中','字'):
             code=int.from_bytes(character.encode('gbk'),'big')
             for size in (12,16,24):
@@ -157,5 +161,27 @@ class GuestTests(unittest.TestCase):
                 self.assertEqual(guest_glyph(self.m,code,size),expected)
         code=int.from_bytes('中'.encode('gbk'),'big');offset=glyph_offset(code,16)
         self.assertEqual(guest_glyph(self.m,code,16,remap=True),font[offset:offset+32])
+
+    def test_minesweeper_cursor_follows_four_directions(self):
+        manifest = json.loads((RUNTIME/'installed-manifest.json').read_text(encoding='utf8'))
+        if not any(record['name'] == '扫雷.exe' for record in manifest['verified']):
+            self.skipTest('Prepare a runtime with the SDK example')
+        self.m.load_nand(RUNTIME/'installed-nand.bin.z')
+        menu(self.m)
+        tap(self.m, KEYS['7'], 30_000_000)
+
+        def assert_cursor(column, row):
+            frame = self.m.frame()
+            # The top-left cursor mark darkens the second pixel of the closed tile.
+            marked = [(x, y) for y in range(8) for x in range(12)
+                      if frame[(21 + 12*y)*240 + 5 + 12*x] == 3]
+            self.assertEqual(marked, [(column, row)])
+
+        assert_cursor(0, 0)
+        for key, column, row in [('Right', 1, 0), ('Down', 1, 1),
+                                 ('Left', 0, 1), ('Up', 0, 0)]:
+            with self.subTest(key=key):
+                tap(self.m, KEYS[key])
+                assert_cursor(column, row)
 
 if __name__=='__main__':unittest.main()

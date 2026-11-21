@@ -41,6 +41,13 @@ def build(archive):
             if count != 1:
                 raise ValueError(f'Unexpected SDK key definition for {key}')
         header.write_text(text, encoding='utf8')
+        main = demo / 'main.c'
+        text = main.read_text(encoding='utf8')
+        for key, (previous, _) in KEYS.items():
+            text, count = re.subn(rf'\bkey=={previous}(?= &&)', f'key==BBK_KEY_{key}', text)
+            if count != 1:
+                raise ValueError(f'Unexpected Minesweeper direction handler for {key}')
+        main.write_text(text, encoding='utf8')
         subprocess.run([sys.executable, '-X', 'utf8', 'tools/build.py', 'examples/minesweeper'],
                        cwd=sdk, check=True)
         executable, = (demo / 'build').rglob('*.exe')
