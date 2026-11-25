@@ -1,4 +1,4 @@
-"""Small WinMM PCM queue; emulated PSG samples remain the only sound source."""
+"""Host PCM backends for the shared emulated PSG."""
 import ctypes as C
 import sys
 
@@ -9,7 +9,42 @@ class Header(C.Structure):
     _fields_=[('data',C.c_void_p),('length',C.c_uint32),('recorded',C.c_uint32),
               ('user',C.c_size_t),('flags',C.c_uint32),('loops',C.c_uint32),('next',C.c_void_p),('reserved',C.c_size_t)]
 
-class AudioOutput:
+def AudioOutput(lib=None):
+    if sys.platform == 'darwin' and lib is not None:
+        return CoreAudioOutput(lib)
+    return WinMMOutput()
+
+
+class CoreAudioOutput:
+    def __init__(self, lib):
+        self.lib = lib
+        self.available = False
+        if not hasattr(lib, 'bbk_out_open'):
+            return
+        lib.bbk_out_open.argtypes = []
+        lib.bbk_out_open.restype = C.c_int
+        lib.bbk_out_write.argtypes = [C.c_char_p, C.c_uint32]
+        lib.bbk_out_write.restype = None
+        for fn in (lib.bbk_out_clear, lib.bbk_out_close):
+            fn.argtypes = []
+            fn.restype = None
+        self.available = lib.bbk_out_open() == 0
+
+    def write(self, pcm):
+        if self.available and pcm:
+            self.lib.bbk_out_write(pcm, len(pcm) // 2)
+
+    def clear(self):
+        if self.available:
+            self.lib.bbk_out_clear()
+
+    def close(self):
+        if self.available:
+            self.lib.bbk_out_close()
+            self.available = False
+
+
+class WinMMOutput:
     def __init__(self):
         self.available=False;self.pending=[];self.handle=C.c_void_p()
         if sys.platform!='win32':return

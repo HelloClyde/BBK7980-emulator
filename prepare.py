@@ -6,14 +6,14 @@ from pathlib import Path
 import tempfile
 import zlib
 
-from machine import Machine, ROOT
+from machine import Machine, ROOT, RESOURCE_DIR, default_runtime
 from tools.install_probe import Link
 from tools.make_font import build as build_font
 from tools.upgrade_package import read_package, system_image
 
 UPDATER_SHA = 'b9c4aa62cd9517859930620cdce5f7c6027120777926bb49e56989bb4e8d145c'
 ROM_SHA = '1f020acdb26a3081839e89f89f325649c231b89e7541505f9fa01edc4d4533a1'
-FONT_SOURCE = ROOT / 'vendor/fonts/unifont-18.0.01.hex.gz'
+FONT_SOURCE = RESOURCE_DIR / 'vendor/fonts/unifont-18.0.01.hex.gz'
 
 
 def export_nand(machine, destination):
@@ -96,7 +96,7 @@ def prepare(updater, target, demo=None, progress=print):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('updater', type=Path)
-    parser.add_argument('--runtime', type=Path, default=ROOT / 'runtime')
+    parser.add_argument('--runtime', type=Path, default=default_runtime())
     parser.add_argument('--demo', type=Path, default=ROOT / 'build/demo/minesweeper.exe')
     args = parser.parse_args()
     prepare(args.updater, args.runtime, args.demo if args.demo.is_file() else None)

@@ -52,9 +52,58 @@ jobs:
           if-no-files-found: error
           archive: true
 
+  build-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+      - name: Build and test
+        run: |
+          python -m pip install -r requirements-build.txt
+          python build.py
+          python -m unittest discover -s tests -v
+          python package.py
+      - name: Verify the repackaged app
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          version=$(cat VERSION)
+          archive="BBK7980-emulator-${version}-macos-${EXPECTED_ARCH}"
+          (cd dist && shasum -a 256 -c "$archive.sha256")
+          ditto -x -k "dist/$archive.zip" "$RUNNER_TEMP/bbk-release"
+          app="$RUNNER_TEMP/bbk-release/BBK7980/BBK7980.app"
+          test "$(lipo -archs "$app/Contents/MacOS/BBK7980")" = "$EXPECTED_ARCH"
+          test "$(lipo -archs "$app/Contents/Frameworks/bbk7980.dylib")" = "$EXPECTED_ARCH"
+          codesign --verify --deep --strict "$app"
+          test "$("$app/Contents/MacOS/BBK7980" --version)" = "$version"
+          test -f "$RUNNER_TEMP/bbk-release/BBK7980/source/txt_to_ebk.py"
+          test -z "$(find "$RUNNER_TEMP/bbk-release" \( -name runtime -o -name data -o -name '*.bin.z' -o -name syscode.bin -o -name nand.bin -o -name '*.upg' \) -print)"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: emulator-macos-${{ matrix.arch }}
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+          archive: true
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [build, build-macos]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -68,8 +117,22 @@ jobs:
           path: dist
       - name: Verify same-build release archive
         run: python3 tools/verify_release.py dist
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: emulator-macos-*
+          merge-multiple: true
+          path: dist/macos
+      - name: Verify macOS checksums
+        working-directory: dist/macos
+        run: |
+          version=$(cat ../../VERSION)
+          for arch in arm64 x86_64; do
+            archive="BBK7980-emulator-${version}-macos-${arch}"
+            test -f "$archive.zip"
+            sha256sum -c "$archive.sha256"
+          done
       - name: Publish preview
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*.zip dist/SHA256SUMS.txt --verify-tag --prerelease --title "BBK7980 模拟器 $GITHUB_REF_NAME" --notes-file "docs/releases/$GITHUB_REF_NAME.md"
+          gh release create "$GITHUB_REF_NAME" dist/*.zip dist/SHA256SUMS.txt dist/macos/*.zip dist/macos/*.sha256 --verify-tag --prerelease --title "BBK7980 模拟器 $GITHUB_REF_NAME" --notes-file "docs/releases/$GITHUB_REF_NAME.md"

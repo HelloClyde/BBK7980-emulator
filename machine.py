@@ -1,18 +1,32 @@
 """ctypes interface to the 65C02/ST2xxx board model."""
 from pathlib import Path
 import ctypes as C
+import os
 import sys
 import zlib
 
 ROOT = Path(__file__).resolve().parent
+RESOURCE_DIR = Path(getattr(sys, '_MEIPASS', ROOT))
+LIBRARY_NAME = {'win32': 'bbk7980.dll', 'darwin': 'bbk7980.dylib'}.get(
+    sys.platform, 'bbk7980.so')
 APP_DIR = Path(sys.executable).parent if getattr(sys, 'frozen', False) else ROOT
+
+
+def default_runtime():
+    override = os.environ.get('BBK7980_RUNTIME')
+    if override:
+        return Path(override).expanduser()
+    if sys.platform == 'darwin' and getattr(sys, 'frozen', False):
+        return Path.home() / 'Library/Application Support/BBK7980/runtime'
+    return APP_DIR / 'runtime'
 
 
 class Machine:
     def __init__(self, firmware=None):
-        self.lib = C.CDLL(str(ROOT / "bbk7980.dll"))
+        self.lib = C.CDLL(str(RESOURCE_DIR / LIBRARY_NAME))
         for name in ("bbk_run", "bbk_clocks", "bbk_instructions", "bbk_irqs", "bbk_iocount"):
             getattr(self.lib, name).restype = C.c_uint64
+        self.lib.bbk_run.argtypes = [C.c_uint32]
         self.lib.bbk_read.restype = self.lib.bbk_phys_read.restype = C.c_uint8
         self.lib.bbk_load.argtypes = [C.POINTER(C.c_uint8), C.c_uint32]
         self.lib.bbk_lcd.argtypes = [C.POINTER(C.c_uint8)]
@@ -25,7 +39,7 @@ class Machine:
         if isinstance(firmware, bytes):
             self.load_bytes(firmware)
         else:
-            self.load(Path(firmware) if firmware else ROOT / "runtime/syscode.bin")
+            self.load(Path(firmware) if firmware else default_runtime() / 'syscode.bin')
 
     def load(self, path):
         self.load_bytes(path.read_bytes())

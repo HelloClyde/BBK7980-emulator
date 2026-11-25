@@ -1,6 +1,6 @@
 # 步步高 7980 模拟器
 
-在 Windows 上运行朗文 7980 的 V1.10 系统。模拟器包含 65C02 指令、存储分页、128 KiB 外置 SRAM、定时器、中断、240 × 120 四级灰度 LCD、按键矩阵、UART 和虚拟 NAND。面板按 7980 真机照片排布，四方向键已在原厂工具菜单中逐一核对。
+在 Windows 和 macOS 上运行朗文 7980 的 V1.10 系统。模拟器包含 65C02 指令、存储分页、128 KiB 外置 SRAM、定时器、中断、240 × 120 四级灰度 LCD、按键矩阵、UART 和虚拟 NAND。面板按 7980 真机照片排布，四方向键已在原厂工具菜单中逐一核对。
 
 ![Windows 模拟器运行 SDK 扫雷，屏幕下方为真机布局键盘](assets/minesweeper-window.png)
 
@@ -21,6 +21,18 @@ BBK7980/
     ├── installed-nand.bin.z
     └── installed-manifest.json
 ```
+
+### macOS（Apple Silicon / Intel）
+
+在 [Releases](https://github.com/HelloClyde/BBK7980-emulator/releases) 选择与 Mac 对应的 ZIP（Apple Silicon 用 `macos-arm64`，Intel 用 `macos-x86_64`），解压后打开 `BBK7980.app`。每个版本以该 Release 实际列出的资产为准。预览包使用临时签名，系统可能要求在「隐私与安全性」中单独批准打开。最低支持的 macOS 版本以实际验证结果为准。
+
+macOS 应用默认使用 `~/Library/Application Support/BBK7980/runtime`。首次启动可选择官网升级包，也可先将同版本的独立系统镜像解压到该路径。移植版旧存档可用同一目录直接读取。源码运行仍默认使用项目下的 `runtime/`。指定 `--runtime PATH` 可覆盖 `BBK7980_RUNTIME` 和默认目录，例如：
+
+```sh
+./BBK7980.app/Contents/MacOS/BBK7980 --runtime ~/bbk-runtime
+```
+
+文件和模拟器菜单支持 ⌘S 保存、⇧⌘S 截图、⌘P 暂停、⌘R 重启和 ⌘W 关闭。Command 与 Option 组合键留给宿主。
 
 ### 从官网升级包自行生成镜像
 
@@ -51,7 +63,19 @@ BBK7980/
 - 点「导出文件」，点击选中列表中的一个或多个机内文件，再选择电脑上的保存目录。文件按原名保存，遇到同名文件会先确认。导出的是机内文件原始内容，应用的 PC 传输包头需要使用 SDK 另行生成。
 - 两项操作都通过原厂「电脑联机」，会重启模拟器。请先在当前应用里保存进度。
 
+## TXT 转 EBK
+
+使用 Python 3.11 运行源码目录下的 `txt_to_ebk.py`（便携包内位于 `source/`）。转换无需模拟器动态库或固件。转换后在模拟器中点「导入文件」，再到 V1.10 的书架打开。
+
+```sh
+python3 txt_to_ebk.py 小说.txt 小说.ebk
+```
+
+默认识别 UTF-8、带 BOM 的 Unicode 和 GB18030，可用 `--encoding` 显式指定。正文必须能编码为 GBK，文件名必须用小写 `.ebk`，含扩展名最多 63 个 GBK 字节。同名输出需显式传入 `--force`。
+
 ## 从源码运行
+
+### Windows
 
 需要 Windows x64、Python 3.11 和 MSYS2 UCRT64 GCC。将 UCRT64 的 `bin` 加入 PATH，然后在项目根目录运行：
 
@@ -71,6 +95,20 @@ python -m pip install -r requirements-build.txt
 python package.py
 python tools/verify_release.py dist
 ```
+
+### macOS
+
+需要带 Tk 的 Python 3.11 和 Xcode Command Line Tools。在本机按当前 Python 架构构建：
+
+```sh
+python3 -m pip install -r requirements-build.txt
+python3 build.py
+python3 -m unittest discover -s tests -v
+python3 app.py
+python3 package.py
+```
+
+打包输出位于 `dist/`。从官网包自行初始化时，macOS 构建默认只安装原厂系统和兼容字库。需要 SDK 扫雷可使用独立系统镜像。Windows x64 与两种 macOS 架构共用一个 `VERSION` 和发行标签。
 
 未导入官网包时，测试使用合成 ROM 检查 CPU、中断及 NAND，原厂系统的集成测试会跳过。安装后的测试覆盖格式化、串口往返、菜单、按键、字库读取。GitHub Actions 从公开源码构建并检查便携包。
 

@@ -8,6 +8,10 @@ for text,start in [('1234567890',0),('qwertyuiop',11),('asdfghjkl',23),('zxcvbnm
         KEYS[character]=start+index
         if character.isalpha():KEYS[character.upper()]=start+index
 
+for character in '0123456789':
+    KEYS['KP_' + character] = KEYS[character]
+KEYS['KP_Enter'] = KEYS['Return']
+
 
 PANEL_ROWS = (
     tuple((n, KEYS[n]) for n in '1234567890') + (('电源', 10),),
@@ -24,7 +28,23 @@ PANEL_FUNCTIONS = (
 )
 
 
-def host_key(event, windows=False):
+# Tk on macOS reports Command as Mod1 and Option as Mod2. Those combinations
+# belong to the menu bar or extended input, so they must not reach the guest.
+MAC_MODIFIERS = 0x8 | 0x10
+SHIFTED_DIGITS = {'!':'1','@':'2','#':'3','$':'4','%':'5',
+                  '^':'6','&':'7','*':'8','(':'9',')':'0'}
+SHIFTED_KEYSYMS = {'exclam':'1','at':'2','numbersign':'3','dollar':'4',
+                   'percent':'5','asciicircum':'6','ampersand':'7',
+                   'asterisk':'8','parenleft':'9','parenright':'0'}
+
+
+def host_key(event, windows=False, macos=False):
+    if macos:
+        if event.state & MAC_MODIFIERS:
+            return None
+        digit = SHIFTED_DIGITS.get(event.char) or SHIFTED_KEYSYMS.get(event.keysym)
+        if digit is not None:
+            return KEYS[digit]
     # On Windows the digit's virtual key stays the same when Tk reports a
     # shifted symbol (for example, exclam), so the guest gets Shift + 1.
     if windows and 0x30 <= event.keycode <= 0x39:
