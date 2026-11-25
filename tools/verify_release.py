@@ -12,7 +12,7 @@ REQUIRED = {HOST, DEMO, f'{PACKAGE_ROOT}/_internal/bbk7980.dll',
             f'{PACKAGE_ROOT}/_internal/vendor/fonts/unifont-18.0.01.hex.gz',
             f'{PACKAGE_ROOT}/_internal/vendor/fonts/OFL-1.1.txt',
             f'{PACKAGE_ROOT}/source/src/machine.c', f'{PACKAGE_ROOT}/source/vendor/s6502.c',
-            f'{PACKAGE_ROOT}/source/file_transfer.py',
+            f'{PACKAGE_ROOT}/source/file_transfer.py', f'{PACKAGE_ROOT}/source/txt_to_ebk.py',
             f'{PACKAGE_ROOT}/demo-source/examples/minesweeper/main.c',
             f'{PACKAGE_ROOT}/demo-source/examples/minesweeper/COPYING',
             f'{PACKAGE_ROOT}/licenses/Python.txt'}

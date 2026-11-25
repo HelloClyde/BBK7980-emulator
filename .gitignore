@@ -11,3 +11,5 @@ data/
 *.upg
 *.zip
 *.log
+*.dylib
+*.so

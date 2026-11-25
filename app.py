@@ -4,15 +4,30 @@ import json
 from pathlib import Path
 import sys
 import tkinter as tk
+from tkinter import font as tkfont
 from tkinter import ttk, filedialog, messagebox, simpledialog
 from PIL import Image, ImageTk
-from machine import Machine, ROOT, APP_DIR
+from machine import Machine, ROOT, RESOURCE_DIR, default_runtime
 from keyboard import KEYS, PANEL_ROWS, PANEL_FUNCTIONS, host_key, host_key_source
 from audio_output import AudioOutput
 import file_transfer
 from prepare import prepare
 
 PALETTE=[235,241,220,153,169,131,83,105,65,26,45,25]+[0]*756
+
+
+PREFERRED_FONTS=('PingFang SC','Hiragino Sans GB','Helvetica Neue')
+
+
+def configure_fonts(window):
+    """Use the system Chinese UI font instead of Tk's X11-style default."""
+    families=set(tkfont.families(window))
+    family=next((name for name in PREFERRED_FONTS if name in families),None)
+    if family is None:return
+    for name in ('TkDefaultFont','TkTextFont','TkMenuFont','TkHeadingFont',
+                 'TkCaptionFont','TkSmallCaptionFont','TkTooltipFont'):
+        try:tkfont.nametofont(name).configure(family=family)
+        except tk.TclError:pass
 
 
 class ExportFileDialog(simpledialog.Dialog):
@@ -23,7 +38,7 @@ class ExportFileDialog(simpledialog.Dialog):
     def body(self, parent):
         ttk.Label(parent, text='点击选择，可多选。').grid(row=0, column=0, sticky='w')
         self.selection = tk.Listbox(parent, selectmode=tk.MULTIPLE, exportselection=False,
-                                    width=52, height=16, font=('Segoe UI', 10))
+                                    width=52, height=16, font=tkfont.nametofont('TkTextFont') if sys.platform == 'darwin' else ('Segoe UI', 10))
         scroll = ttk.Scrollbar(parent, command=self.selection.yview)
         self.selection.configure(yscrollcommand=scroll.set)
         self.selection.grid(row=1, column=0, sticky='nsew')
@@ -57,15 +72,15 @@ class Emulator:
         self.window.configure(bg='#e8e8e2');self.window.resizable(False,False)
         self.machine=Machine(options.runtime/'syscode.bin')
         self.data_dir=options.runtime/'data';self.data_dir.mkdir(exist_ok=True)
-        self.audio_output=AudioOutput()
         self.save_path=self.data_dir/'nand.bin';self.closed=False
         self.smoke_error = None
         preset=options.runtime/'installed-nand.bin.z'
         source=Path(options.nand) if options.nand else self.save_path if self.save_path.exists() else preset
         self.machine.load_nand(source)
+        self.audio_output=AudioOutput(self.machine.lib)
         outer=ttk.Frame(window,padding=(16,12));outer.pack()
         self.display_scale = 2 if window.winfo_screenheight() < 880 else 3
-        ttk.Label(outer,text='BBK 7980',font=('Segoe UI',20,'bold')).pack(anchor='w')
+        ttk.Label(outer,text='BBK 7980',font=('TkDefaultFont',20,'bold') if sys.platform == 'darwin' else ('Segoe UI',20,'bold')).pack(anchor='w')
         ttk.Label(outer,text='原厂 V1.10 系统 · 240 × 120 · 四级灰度').pack(anchor='w',pady=(0,12))
         self.screen=tk.Label(outer,bg='#35462d',bd=8,relief='sunken');self.screen.pack()
         self.font_notice=tk.StringVar(value='正在检查中文字库…')
@@ -82,12 +97,46 @@ class Emulator:
         window.bind('<KeyPress>',self.key_down);window.bind('<KeyRelease>',self.key_up)
         window.bind('<FocusOut>',lambda event:self.release_all())
         window.protocol('WM_DELETE_WINDOW',self.close)
+        if sys.platform == 'darwin':
+            self.build_menu()
+            window.createcommand('tk::mac::Quit', self.close)
+            for sequence, action in [('<Command-s>', self.save), ('<Command-Shift-S>', self.screenshot),
+                                     ('<Command-p>', self.pause), ('<Command-r>', self.reset),
+                                     ('<Command-w>', self.close)]:
+                window.bind(sequence, self.shortcut(action))
         self.machine.run(80_000_000);self.update_font_notice()
         if options.minesweeper:self.launch_minesweeper()
         if hasattr(self.machine.lib,'bbk_audio_clear'):self.machine.lib.bbk_audio_clear()
         self.last_frame=None;self.render()
         window.after(16,self.step)
         if options.smoke_test:window.after(500,self.run_smoke_test)
+
+    def shortcut(self, action):
+        def handler(event=None):
+            action()
+            return 'break'
+        return handler
+
+    def build_menu(self):
+        menubar=tk.Menu(self.window)
+        files=tk.Menu(menubar,tearoff=False)
+        files.add_command(label='导入文件…',command=self.import_file)
+        files.add_command(label='导出文件…',command=self.export_file)
+        files.add_separator()
+        files.add_command(label='保存 NAND',accelerator='⌘S',command=self.save)
+        files.add_command(label='截图…',accelerator='⇧⌘S',command=self.screenshot)
+        files.add_separator()
+        files.add_command(label='关闭',accelerator='⌘W',command=self.close)
+        menubar.add_cascade(label='文件',menu=files)
+        machine=tk.Menu(menubar,tearoff=False)
+        machine.add_command(label='暂停 / 继续',accelerator='⌘P',command=self.pause)
+        machine.add_command(label='重启',accelerator='⌘R',command=self.reset)
+        machine.add_command(label='载入 NAND…',command=self.open_nand)
+        machine.add_separator()
+        machine.add_command(label='按键矩阵',command=self.matrix)
+        menubar.add_cascade(label='模拟器',menu=machine)
+        self.window.configure(menu=menubar)
+
 
     def build_keypad(self, parent):
         panel = ttk.Frame(parent, padding=(0, 0, 0, 4))
@@ -145,7 +194,7 @@ class Emulator:
         self.pressed.clear()
 
     def key_down(self,event):
-        code = host_key(event, windows=sys.platform == 'win32')
+        code = host_key(event, windows=sys.platform == 'win32', macos=sys.platform == 'darwin')
         if code is not None:
             self.press(code, host_key_source(event))
 
@@ -319,10 +368,15 @@ class Emulator:
         target=Path(self.options.smoke_test);target.parent.mkdir(parents=True,exist_ok=True)
         self.frame_image().save(target)
         self.window.update()
-        from PIL import ImageGrab
-        x,y=self.window.winfo_rootx(),self.window.winfo_rooty()
-        width,height=self.window.winfo_width(),self.window.winfo_height()
-        ImageGrab.grab(bbox=(x,y,x+width,y+height)).save(target.with_name(target.stem+'-window.png'))
+        try:
+            from PIL import ImageGrab
+            x,y=self.window.winfo_rootx(),self.window.winfo_rooty()
+            width,height=self.window.winfo_width(),self.window.winfo_height()
+            ImageGrab.grab(bbox=(x,y,x+width,y+height)).save(target.with_name(target.stem+'-window.png'))
+        except (OSError, tk.TclError) as error:
+            if sys.platform != 'darwin':
+                raise
+            print(f'window screenshot skipped: {error}', file=sys.stderr)
 
     def run_smoke_test(self):
         try:
@@ -335,6 +389,7 @@ class Emulator:
             self.window.quit()
 
     def close(self):
+        if self.closed:return
         self.release_all()
         try:self.machine.save_nand(self.save_path)
         except OSError as exc:
@@ -343,15 +398,18 @@ class Emulator:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--version', action='version', version=(ROOT/'VERSION').read_text().strip())
-    parser.add_argument('--runtime', type=Path, default=APP_DIR/'runtime')
+    parser.add_argument('--version', action='version', version=(RESOURCE_DIR/'VERSION').read_text().strip())
+    parser.add_argument('--runtime', type=Path, default=default_runtime())
     parser.add_argument('--prepare', type=Path, metavar='UPDATER')
     parser.add_argument('--nand', type=Path)
     parser.add_argument('--smoke-test', type=Path)
     parser.add_argument('--minesweeper', action='store_true')
     args = parser.parse_args()
+    args.runtime = args.runtime.expanduser()
     window = tk.Tk()
     window.withdraw()
+    if sys.platform == 'darwin':
+        configure_fonts(window)
     try:
         if args.prepare or not (args.runtime/'installed-nand.bin.z').is_file():
             run_setup(window, args)

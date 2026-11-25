@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -92,6 +93,70 @@ class GuestTests(unittest.TestCase):
         payload=bytes(range(256))*65+b'last partial NAND page'
         link.put('roundtrip.bin',payload)
         self.assertEqual(link.get('roundtrip.bin'),payload)
+
+    def test_ebook_survives_serial_roundtrip_and_opens_in_reader(self):
+        from file_transfer import connect, list_files
+        from txt_to_ebk import encode_ebk
+
+        self.m.load_nand(RUNTIME/'installed-nand.bin.z')
+        name = '合并测试.ebk'
+        text = '第一章\nhello world\n' * 3 + '第二章\nNext page.\n' * 15
+        payload = encode_ebk(text)
+        connect(self.m).put(name, payload)
+        self.assertIn((name, len(payload)), list_files(self.m))
+        self.assertEqual(connect(self.m).get(name), payload)
+
+        self.lib.bbk_reset()
+        self.m.run(80_000_000)
+        for _ in range(5):
+            tap(self.m, KEYS['Next'])
+        tap(self.m, KEYS['1'], 30_000_000)
+        shelf = self.m.frame()
+        tap(self.m, KEYS['Return'], 30_000_000)
+        first_page = self.m.frame()
+        self.assertNotEqual(first_page, shelf)
+        # The stock Font key cycles 16 -> 12 -> 24 -> 16 pixels.
+        font_key = 33
+        tap(self.m, font_key)
+        small_page = self.m.frame()
+        self.assertNotEqual(small_page, first_page)
+        tap(self.m, KEYS['Next'])
+        self.assertNotEqual(self.m.frame()[:240 * 100], small_page[:240 * 100])
+        tap(self.m, KEYS['Prior'])
+        tap(self.m, font_key)
+        large_page = self.m.frame()
+        self.assertNotIn(large_page, (first_page, small_page))
+        tap(self.m, KEYS['Next'])
+        self.assertNotEqual(self.m.frame()[:240 * 100], large_page[:240 * 100])
+        tap(self.m, KEYS['Prior'])
+        tap(self.m, font_key)
+        self.assertEqual(self.m.frame(), first_page)
+
+        tap(self.m, KEYS['Next'])
+        bookmarked_page = self.m.frame()
+        self.assertNotEqual(bookmarked_page[:240 * 100], first_page[:240 * 100])
+        tap(self.m, KEYS['F1'])
+        tap(self.m, KEYS['Return'])
+        tap(self.m, KEYS['Escape'])
+        with tempfile.TemporaryDirectory() as directory:
+            save = Path(directory) / 'nand.bin'
+            self.m.save_nand(save)
+            self.m = Machine(RUNTIME/'syscode.bin')
+            self.m.load_nand(save)
+            self.m.run(80_000_000)
+        for _ in range(5):
+            tap(self.m, KEYS['Next'])
+        tap(self.m, KEYS['1'], 30_000_000)
+        tap(self.m, KEYS['Return'], 30_000_000)
+        # The reader resumes at the last position across a NAND save/reload.
+        self.assertEqual(self.m.frame(), bookmarked_page)
+        for key in ('F2', 'Return'):
+            tap(self.m, KEYS[key])
+        self.assertEqual(self.m.frame(), first_page)
+        # The jump menu starts at “Beginning”, then “End”, then bookmark 1.
+        for key in ('F2', 'Down', 'Down', 'Return'):
+            tap(self.m, KEYS[key])
+        self.assertEqual(self.m.frame(), bookmarked_page)
 
     def test_guest_serial_distinguishes_empty_and_missing_file(self):
         self.m.load_nand(RUNTIME/'installed-nand.bin.z')
